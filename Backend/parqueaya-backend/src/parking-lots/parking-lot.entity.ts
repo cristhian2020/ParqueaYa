@@ -1,5 +1,6 @@
 // src/parking-lots/parking-lot.entity.ts
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../users/user.entity';
 
 @Entity('parking_lots')
 export class ParkingLot {
@@ -7,7 +8,11 @@ export class ParkingLot {
   id: string;
 
   @Column()
-  owner_email: string;
+  owner_id: string;
+
+  @ManyToOne(() => User, (user) => user.parking_lots)
+  @JoinColumn({ name: 'owner_id' })
+  owner: User;
 
   @Column()
   name: string;

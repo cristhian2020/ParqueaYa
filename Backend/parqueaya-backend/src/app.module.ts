@@ -3,6 +3,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
 import { ParkingLotsModule } from './parking-lots/module/parking-lots.module';
 
 @Module({
@@ -19,13 +21,15 @@ import { ParkingLotsModule } from './parking-lots/module/parking-lots.module';
         type: 'postgres',
         url: configService.get('DATABASE_URL'),
         ssl: {
-          rejectUnauthorized: false, 
+          rejectUnauthorized: false,
         },
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: false, // ¡Importante! En producción no usar true
+        synchronize: true, // Cambiado a true para desarrollo - crea las tablas automáticamente
         logging: true, // Para ver las consultas SQL en consola
       }),
     }),
+    UsersModule,
+    AuthModule,
     ParkingLotsModule,
   ],
   controllers: [AppController],

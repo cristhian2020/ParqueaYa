@@ -1,13 +1,10 @@
-// src/parking-lots/dto/create-parking-lot.dto.ts
-import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, IsLatitude, IsLongitude, Min, Max } from 'class-validator';
+// src/parking-lots/dto/update-parking-lot.dto.ts
+import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, IsLatitude, IsLongitude, Min } from 'class-validator';
 
-export class CreateParkingLotDto {
+export class UpdateParkingLotDto {
   @IsString()
   @IsOptional()
-  owner_id?: string;
-
-  @IsString()
-  name: string;
+  name?: string;
 
   @IsString()
   @IsOptional()
@@ -18,10 +15,12 @@ export class CreateParkingLotDto {
   description?: string;
 
   @IsLatitude()
-  latitude: number;
+  @IsOptional()
+  latitude?: number;
 
   @IsLongitude()
-  longitude: number;
+  @IsOptional()
+  longitude?: number;
 
   @IsNumber()
   @Min(0)
