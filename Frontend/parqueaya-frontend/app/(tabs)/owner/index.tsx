@@ -17,9 +17,12 @@ import * as Location from 'expo-location';
 import { useAuthStore } from '../../../src/store/authStore';
 import { parkingLotsService, ParkingLot } from '../../../src/api/parking-lots.service';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { reservationsService } from '../../../src/api/reservations.service';
+import { Reservation } from '../../../src/types';
+import api from '../../../src/api/axios';
 import LocationPickerModal from '../../../src/components/LocationPickerModal';
 
-type TabType = 'register' | 'car';
+type TabType = 'register' | 'list' | 'reservations';
 
 export default function OwnerScreen() {
   const router = useRouter();
@@ -28,12 +31,14 @@ export default function OwnerScreen() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>(
-    tab === 'car' ? 'car' : 'register'
+    (tab === 'car' || tab === 'list') ? 'list' : 'register'
   );
 
   // React to navigation param changes
   useEffect(() => {
-    if (tab === 'car' || tab === 'register') {
+    if (tab === 'car' || tab === 'list') {
+      setActiveTab('list');
+    } else if (tab === 'register' || tab === 'reservations') {
       setActiveTab(tab);
     }
   }, [tab]);
@@ -61,6 +66,10 @@ export default function OwnerScreen() {
   const [myParkingLots, setMyParkingLots] = useState<ParkingLot[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Reservations state
+  const [ownerReservations, setOwnerReservations] = useState<Reservation[]>([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
 
   // Redirigir si el usuario no es owner
   useEffect(() => {
@@ -73,10 +82,12 @@ export default function OwnerScreen() {
     }
   }, [user]);
 
-  // Cargar parqueos al cambiar a tab lista
+  // Cargar parqueos y reservas al cambiar de tab
   useEffect(() => {
-    if (activeTab === 'car') {
+    if (activeTab === 'list') {
       fetchMyParkingLots();
+    } else if (activeTab === 'reservations') {
+      fetchOwnerReservations();
     }
   }, [activeTab]);
 
@@ -103,7 +114,20 @@ export default function OwnerScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchMyParkingLots();
+    await fetchOwnerReservations();
     setRefreshing(false);
+  };
+
+  const fetchOwnerReservations = async () => {
+    setLoadingReservations(true);
+    try {
+      const data = await reservationsService.getAllOwnerReservations();
+      setOwnerReservations(data);
+    } catch (error: any) {
+      Alert.alert('Error', 'No se pudieron cargar las reservas');
+    } finally {
+      setLoadingReservations(false);
+    }
   };
 
   // ==================== FORM HELPERS ====================
@@ -196,7 +220,7 @@ export default function OwnerScreen() {
       if (editingId) {
         await parkingLotsService.update(editingId, payload);
         Alert.alert('Éxito', 'Parqueo actualizado correctamente', [
-          { text: 'OK', onPress: () => { resetForm(); setActiveTab('car'); } },
+          { text: 'OK', onPress: () => { resetForm(); setActiveTab('list'); } },
         ]);
       } else {
         await parkingLotsService.create(payload);
@@ -227,6 +251,76 @@ export default function OwnerScreen() {
               Alert.alert('Eliminado', 'El parqueo ha sido eliminado');
             } catch (error: any) {
               Alert.alert('Error', 'No se pudo eliminar el parqueo');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUpdateReservationStatus = (reservation: Reservation, newStatus: string) => {
+    Alert.alert(
+      'Cambiar estado de reserva',
+      `¿Estás seguro de marcar esta reserva como "${newStatus}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            try {
+              await reservationsService.updateStatus(reservation.id, { status: newStatus as any });
+              Alert.alert('Éxito', 'Estado de reserva actualizado');
+              fetchOwnerReservations();
+            } catch (error: any) {
+              Alert.alert('Error', 'No se pudo actualizar el estado');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRecordExit = (reservation: Reservation) => {
+    Alert.alert(
+      'Registrar salida',
+      '¿Deseas registrar la salida del vehículo? La reserva se marcará como COMPLETADA y se calculará el recargo si excedió el tiempo (15 min de gracia).',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Registrar',
+          onPress: async () => {
+            try {
+              const response = await api.post(`/reservations/${reservation.id}/record-exit`);
+              const message = response.data.overtimePrice > 0
+                ? `Salida registrada. Recargo: Bs. ${response.data.overtimePrice?.toFixed(2)}. Reserva completada.`
+                : 'Salida registrada. Sin recargo (dentro de los 15 min de gracia). Reserva completada.';
+              Alert.alert('Éxito', message);
+              fetchOwnerReservations();
+            } catch (error: any) {
+              Alert.alert('Error', 'No se pudo registrar la salida');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteReservation = (reservation: Reservation) => {
+    Alert.alert(
+      'Eliminar reserva',
+      `¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/reservations/${reservation.id}`);
+              Alert.alert('Eliminado', 'La reserva ha sido eliminada');
+              fetchOwnerReservations();
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.message || 'No se pudo eliminar la reserva');
             }
           },
         },
@@ -594,6 +688,222 @@ export default function OwnerScreen() {
     </View>
   );
 
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { color: string; label: string; icon: any }> = {
+      pending: { color: '#FF9800', label: 'Pendiente', icon: 'time-outline' },
+      confirmed: { color: '#4CAF50', label: 'Confirmada', icon: 'checkmark-circle-outline' },
+      cancelled: { color: '#F44336', label: 'Cancelada', icon: 'close-circle-outline' },
+      completed: { color: '#2196F3', label: 'Completada', icon: 'checkmark-done-circle-outline' },
+      no_show: { color: '#9E9E9E', label: 'No se presentó', icon: 'person-outline' },
+    };
+    return configs[status] || configs.pending;
+  };
+
+  const formatReservationDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatReservationTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatReservationDateTime = (startString: string, endString: string) => {
+    const startDate = new Date(startString);
+    const endDate = new Date(endString);
+    
+    const dateStr = startDate.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    
+    const startTime = startDate.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    
+    const endTime = endDate.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    
+    return `${dateStr}, ${startTime} - ${endTime}`;
+  };
+
+  const renderReservationItem = ({ item }: { item: Reservation }) => {
+    const statusConfig = getStatusConfig(item.status);
+    const hasOvertime = item.overtime_price && item.overtime_price > 0;
+    const totalPrice = Number(item.total_price || 0) + Number(item.overtime_price || 0);
+    
+    return (
+      <View style={styles.reservationCard}>
+        <View style={styles.reservationHeader}>
+          <View style={styles.reservationTitleRow}>
+            <Ionicons name="calendar-outline" size={20} color="#2196F3" />
+            <Text style={styles.reservationParkingName} numberOfLines={1}>
+              {item.parking_lot?.name || 'Parqueo'}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
+            <Ionicons name={statusConfig.icon as any} size={14} color={statusConfig.color} />
+            <Text style={[styles.statusText, { color: statusConfig.color }]}>
+              {statusConfig.label}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.reservationBody}>
+          <View style={styles.reservationRow}>
+            <Ionicons name="person-outline" size={16} color="#666" />
+            <Text style={styles.reservationRowText}>
+              {item.user?.name || 'Usuario'}
+            </Text>
+          </View>
+          {item.vehicle_plate && (
+            <View style={styles.reservationRow}>
+              <Ionicons name="car-outline" size={16} color="#2196F3" />
+              <Text style={[styles.reservationRowText, styles.plateText]}>
+                Placa: {item.vehicle_plate}
+              </Text>
+            </View>
+          )}
+          <View style={styles.reservationRow}>
+            <Ionicons name="calendar-outline" size={16} color="#666" />
+            <Text style={styles.reservationRowText}>
+              {formatReservationDate(item.start_time)}
+            </Text>
+          </View>
+          <View style={styles.reservationRow}>
+            <Ionicons name="time-outline" size={16} color="#2196F3" />
+            <Text style={[styles.reservationRowText, styles.timeRangeText]}>
+              {formatReservationTime(item.start_time)} - {formatReservationTime(item.end_time)}
+            </Text>
+          </View>
+          {item.spot_number && (
+            <View style={styles.reservationRow}>
+              <Ionicons name="apps-outline" size={16} color="#666" />
+              <Text style={styles.reservationRowText}>
+                Espacio #{item.spot_number}
+              </Text>
+            </View>
+          )}
+          <View style={styles.reservationRow}>
+            <Ionicons name="cash-outline" size={16} color="#4CAF50" />
+            <Text style={[styles.reservationRowText, styles.priceText]}>
+              Bs. {totalPrice.toFixed(2)}
+              {hasOvertime && (
+                <Text style={styles.overtimeText}>
+                  {' '}(+ Bs. {item.overtime_price?.toFixed(2)} recargo)
+                </Text>
+              )}
+            </Text>
+          </View>
+          {item.actual_end_time && (
+            <View style={styles.reservationRow}>
+              <Ionicons name="checkmark-circle-outline" size={16} color="#4CAF50" />
+              <Text style={styles.reservationRowText}>
+                Salida: {formatReservationTime(item.actual_end_time)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.reservationActions}>
+          {item.status === 'pending' && (
+            <>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.confirmButton]}
+                onPress={() => handleUpdateReservationStatus(item, 'confirmed')}
+              >
+                <Ionicons name="checkmark-outline" size={18} color="#4CAF50" />
+                <Text style={styles.confirmButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.cancelButton]}
+                onPress={() => handleUpdateReservationStatus(item, 'cancelled')}
+              >
+                <Ionicons name="close-outline" size={18} color="#F44336" />
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          {item.status === 'confirmed' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.exitButton]}
+              onPress={() => handleRecordExit(item)}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#FF9800" />
+              <Text style={styles.exitButtonText}>Registrar Salida</Text>
+            </TouchableOpacity>
+          )}
+          {(item.status === 'cancelled' || item.status === 'completed') && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleDeleteReservation(item)}
+            >
+              <Ionicons name="trash-outline" size={18} color="#F44336" />
+              <Text style={styles.deleteButtonText}>Eliminar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderReservations = () => (
+    <View style={styles.listWrapper}>
+      <View style={styles.header}>
+        <Ionicons name="calendar" size={32} color="white" />
+        <Text style={styles.title}>Reservas de mis Parqueos</Text>
+        <Text style={styles.subtitle}>
+          {ownerReservations.length} reserva{ownerReservations.length !== 1 ? 's' : ''}
+        </Text>
+      </View>
+
+      {loadingReservations && ownerReservations.length === 0 ? (
+        <View style={styles.listLoading}>
+          <ActivityIndicator size="large" color="#2196F3" />
+          <Text style={styles.listLoadingText}>Cargando reservas...</Text>
+        </View>
+      ) : ownerReservations.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="calendar-outline" size={64} color="#ccc" />
+          <Text style={styles.emptyTitle}>No tienes reservas</Text>
+          <Text style={styles.emptySubtitle}>
+            Las reservas de tus parqueos aparecerán aquí
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={ownerReservations}
+          keyExtractor={(item) => item.id}
+          renderItem={renderReservationItem}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2196F3']} />
+          }
+        />
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.tabBar}>
@@ -611,22 +921,35 @@ export default function OwnerScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'car' && styles.tabItemActive]}
-          onPress={() => setActiveTab('car')}
+          style={[styles.tabItem, activeTab === 'list' && styles.tabItemActive]}
+          onPress={() => setActiveTab('list')}
         >
           <Ionicons
-            name={activeTab === 'car' ? 'car' : 'car-outline'}
+            name={activeTab === 'list' ? 'car' : 'car-outline'}
             size={20}
-            color={activeTab === 'car' ? '#2196F3' : '#666'}
+            color={activeTab === 'list' ? '#2196F3' : '#666'}
           />
-          <Text style={[styles.tabText, activeTab === 'car' && styles.tabTextActive]}>
+          <Text style={[styles.tabText, activeTab === 'list' && styles.tabTextActive]}>
             Mis Parqueos
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'reservations' && styles.tabItemActive]}
+          onPress={() => setActiveTab('reservations')}
+        >
+          <Ionicons
+            name={activeTab === 'reservations' ? 'calendar' : 'calendar-outline'}
+            size={20}
+            color={activeTab === 'reservations' ? '#2196F3' : '#666'}
+          />
+          <Text style={[styles.tabText, activeTab === 'reservations' && styles.tabTextActive]}>
+            Reservas
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Content */}
-      {activeTab === 'register' ? renderForm() : renderList()}
+      {activeTab === 'register' ? renderForm() : activeTab === 'list' ? renderList() : renderReservations()}
 
       {/* Map Picker Modal */}
       <LocationPickerModal
@@ -1045,6 +1368,133 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     fontSize: 14,
     color: '#F44336',
+    fontWeight: '600',
+  },
+  // ===== Reservations =====
+  reservationCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  reservationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  reservationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 6,
+  },
+  reservationParkingName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  reservationBody: {
+    marginBottom: 12,
+    gap: 6,
+  },
+  reservationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reservationRowText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  timeRangeText: {
+    fontWeight: '600',
+    color: '#2196F3',
+  },
+  priceText: {
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  reservationActions: {
+    flexDirection: 'row',
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  confirmButton: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  confirmButtonText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#F44336',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#F44336',
+    fontWeight: '600',
+  },
+  completeButton: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#2196F3',
+  },
+  completeButtonText: {
+    fontSize: 14,
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  exitButton: {
+    backgroundColor: '#FFF3E0',
+    borderColor: '#FF9800',
+  },
+  exitButtonText: {
+    fontSize: 14,
+    color: '#FF9800',
+    fontWeight: '600',
+  },
+  plateText: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  overtimeText: {
+    fontSize: 12,
+    color: '#FF9800',
     fontWeight: '600',
   },
 });

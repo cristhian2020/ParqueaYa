@@ -89,6 +89,16 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Reservas</Text>
+
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/reservations' as any)}>
+          <Ionicons name="calendar-outline" size={20} color="#2196F3" />
+          <Text style={styles.menuItemText}>Mis reservas</Text>
+          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        </TouchableOpacity>
+      </View>
+
       {user.role === 'owner' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Opciones de dueño</Text>

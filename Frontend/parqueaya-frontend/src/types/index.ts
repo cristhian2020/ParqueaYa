@@ -21,3 +21,44 @@ export interface User {
   name: string;
   role: 'user' | 'owner';
 }
+
+export type ReservationStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'cancelled'
+  | 'completed'
+  | 'no_show';
+
+export interface Reservation {
+  id: string;
+  user_id: string;
+  parking_lot_id: string;
+  spot_number?: number;
+  vehicle_plate?: string;
+  start_time: string;
+  end_time: string;
+  actual_end_time?: string;
+  status: ReservationStatus;
+  total_price: number;
+  overtime_price?: number;
+  notes?: string;
+  cancelled_by_owner?: boolean;
+  created_at: string;
+  updated_at: string;
+  user?: User;
+  parking_lot?: Parking;
+}
+
+export interface CreateReservationDto {
+  parking_lot_id: string;
+  start_time: string;
+  end_time: string;
+  spot_number?: number;
+  vehicle_plate?: string;
+  notes?: string;
+}
+
+export interface UpdateReservationStatusDto {
+  status: ReservationStatus;
+  cancellation_reason?: string;
+}

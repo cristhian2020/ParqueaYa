@@ -25,6 +25,21 @@ export default function RootLayout() {
           title: 'Detalle del Parqueo',
           headerBackTitle: 'Volver'
         }} />
+        <Stack.Screen name="reservations/index" options={{
+          headerShown: true,
+          title: 'Mis Reservas',
+          headerBackTitle: 'Volver'
+        }} />
+        <Stack.Screen name="reservations/[id]" options={{
+          headerShown: true,
+          title: 'Detalle de Reserva',
+          headerBackTitle: 'Volver'
+        }} />
+        <Stack.Screen name="reservations/create" options={{
+          headerShown: true,
+          title: 'Nueva Reserva',
+          headerBackTitle: 'Volver'
+        }} />
       </Stack>
     </SafeAreaProvider>
   );

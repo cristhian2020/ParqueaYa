@@ -1,6 +1,17 @@
 // src/parking-lots/parking-lot.entity.ts
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from 'typeorm';
 import { User } from '../users/user.entity';
+import { Reservation } from '../reservations/reservation.entity';
 
 @Entity('parking_lots')
 export class ParkingLot {
@@ -66,4 +77,7 @@ export class ParkingLot {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @OneToMany(() => Reservation, (reservation) => reservation.parking_lot)
+  reservations: Reservation[];
 }

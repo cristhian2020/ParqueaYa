@@ -40,11 +40,10 @@ export default function ParkingDetailScreen() {
   };
 
   const handleReserve = () => {
-    Alert.alert(
-      'Reserva',
-      'Esta funcionalidad estará disponible próximamente',
-      [{ text: 'OK' }]
-    );
+    router.push({
+      pathname: '/reservations/create' as any,
+      params: { parkingLotId: id },
+    });
   };
 
   if (isLoading || !selectedParking) {
