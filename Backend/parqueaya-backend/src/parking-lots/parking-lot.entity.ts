@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Reservation } from '../reservations/reservation.entity';
+import { Review } from '../reviews/review.entity';
 
 @Entity('parking_lots')
 export class ParkingLot {
@@ -80,4 +81,7 @@ export class ParkingLot {
 
   @OneToMany(() => Reservation, (reservation) => reservation.parking_lot)
   reservations: Reservation[];
+
+  @OneToMany(() => Review, (review) => review.parking_lot)
+  reviews: Review[];
 }

@@ -145,8 +145,8 @@ export default function ProfileScreen() {
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Parqueo Bolivia v1.0.0</Text>
-        <Text style={styles.footerSubtext}>© 2024 Todos los derechos reservados</Text>
+        <Text style={styles.footerText}>ParqueaYa v1.0.0</Text>
+        <Text style={styles.footerSubtext}>© 2026 Todos los derechos reservados</Text>
       </View>
     </ScrollView>
   );

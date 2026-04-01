@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import {
   View,
@@ -9,23 +9,131 @@ import {
   Linking,
   Platform,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Button, IconButton } from 'react-native-paper';
 import { useParkingStore } from '../../src/store/useParkingStore';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
+import { ReviewCard } from '../../src/components/ReviewCard';
+import { ReviewForm } from '../../src/components/ReviewForm';
+import { reviewsService } from '../../src/api/reviews.service';
+import { useAuthStore } from '../../src/store/authStore';
+import { Review, CreateReviewDto, UpdateReviewDto } from '../../src/types';
 
 export default function ParkingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuthStore();
 
   const { selectedParking, isLoading, fetchById } = useParkingStore();
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState<number>(0);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userReview, setUserReview] = useState<Review | null>(null);
 
   useEffect(() => {
     if (id) {
       fetchById(id);
+      loadReviews();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (reviews.length > 0 && user) {
+      const myReview = reviews.find((r) => r.user_id === user.id);
+      setUserReview(myReview || null);
+    } else {
+      setUserReview(null);
+    }
+  }, [reviews, user]);
+
+  const loadReviews = async () => {
+    if (!id) return;
+    setIsLoadingReviews(true);
+    try {
+      const [reviewsData, averageData] = await Promise.all([
+        reviewsService.getByParkingLot(id),
+        reviewsService.getAverageRating(id),
+      ]);
+      setReviews(reviewsData);
+      setAverageRating(averageData.average_rating);
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    } finally {
+      setIsLoadingReviews(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadReviews();
+    setRefreshing(false);
+  };
+
+  const handleOpenForm = () => {
+    setEditingReview(null);
+    setIsFormVisible(true);
+  };
+
+  const handleEditReview = (review: Review) => {
+    setEditingReview(review);
+    setIsFormVisible(true);
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    Alert.alert(
+      'Eliminar review',
+      '¿Estás seguro de que quieres eliminar tu review?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await reviewsService.delete(reviewId);
+              await loadReviews();
+              Alert.alert('Éxito', 'Review eliminada correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar la review');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSubmitReview = async (data: CreateReviewDto | UpdateReviewDto) => {
+    if (editingReview) {
+      await reviewsService.update(editingReview.id, data as UpdateReviewDto);
+      Alert.alert('Éxito', 'Review actualizada correctamente');
+    } else {
+      await reviewsService.create(data as CreateReviewDto);
+      Alert.alert('Éxito', 'Review publicada correctamente');
+    }
+    await loadReviews();
+  };
+
+  const renderStars = (rating: number) => {
+    return (
+      <View style={styles.starsContainer}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Ionicons
+            key={star}
+            name={star <= rating ? 'star' : 'star-outline'}
+            size={22}
+            color={star <= rating ? '#FFC107' : '#E0E0E0'}
+          />
+        ))}
+      </View>
+    );
+  };
 
   const openInMaps = () => {
     if (!selectedParking || !selectedParking.location) return;
@@ -51,7 +159,16 @@ export default function ParkingDetailScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#2196F3"
+        />
+      }
+    >
       <Stack.Screen
         options={{
           title: selectedParking.name,
@@ -124,7 +241,81 @@ export default function ParkingDetailScreen() {
           <Ionicons name="calendar-outline" size={24} color="#2196F3" />
           <Text style={styles.reserveButtonText}>Reservar espacio</Text>
         </TouchableOpacity>
+
+        {/* Reviews Section */}
+        <View style={styles.reviewsSection}>
+          <View style={styles.reviewsHeader}>
+            <Text style={styles.sectionTitle}>Opiniones</Text>
+            {averageRating > 0 && (
+              <View style={styles.averageRating}>
+                <Text style={styles.averageRatingValue}>{averageRating.toFixed(1)}</Text>
+                <View style={styles.averageStars}>
+                  {renderStars(Math.round(averageRating))}
+                </View>
+                <Text style={styles.averageRatingCount}>
+                  {reviews.length} {reviews.length === 1 ? 'opinión' : 'opiniones'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {user && (
+            <Button
+              mode="outlined"
+              onPress={handleOpenForm}
+              icon="star-plus"
+              style={styles.writeReviewButton}
+            >
+              Dejar una opinión
+            </Button>
+          )}
+
+          {!user && (
+            <Text style={styles.loginHint}>
+              Inicia sesión para dejar una opinión
+            </Text>
+          )}
+
+          {isLoadingReviews ? (
+            <View style={styles.loadingReviews}>
+              <LoadingSpinner />
+            </View>
+          ) : reviews.length === 0 ? (
+            <View style={styles.noReviews}>
+              <Ionicons name="chatbubble-ellipses-outline" size={48} color="#BDBDBD" />
+              <Text style={styles.noReviewsText}>
+                Aún no hay opiniones. ¡Sé el primero en opinar!
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.reviewsList}>
+              {reviews.map((review) => {
+                const isMyReview = user?.id === review.user_id;
+                return (
+                  <ReviewCard
+                    key={review.id}
+                    review={review}
+                    isCurrentUser={isMyReview}
+                    onEdit={isMyReview ? () => handleEditReview(review) : undefined}
+                    onDelete={isMyReview ? () => handleDeleteReview(review.id) : undefined}
+                  />
+                );
+              })}
+            </View>
+          )}
+        </View>
       </View>
+
+      <ReviewForm
+        parkingLotId={id as string}
+        existingReview={editingReview}
+        onSubmit={handleSubmitReview}
+        visible={isFormVisible}
+        onDismiss={() => {
+          setIsFormVisible(false);
+          setEditingReview(null);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -240,5 +431,69 @@ const styles = StyleSheet.create({
     color: '#2196F3',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+
+  // Reviews section styles
+  reviewsSection: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  averageRating: {
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  averageRatingValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  averageStars: {
+    flexDirection: 'row',
+    marginVertical: 4,
+  },
+  averageRatingCount: {
+    fontSize: 12,
+    color: '#757575',
+  },
+  writeReviewButton: {
+    marginBottom: 16,
+  },
+  loginHint: {
+    fontSize: 14,
+    color: '#757575',
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  loadingReviews: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  noReviews: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  noReviewsText: {
+    fontSize: 14,
+    color: '#757575',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  reviewsList: {
+    marginBottom: 16,
+  },
+  starsContainer: {
+    flexDirection: 'row',
   },
 });

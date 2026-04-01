@@ -1,7 +1,15 @@
 // src/users/user.entity.ts
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { ParkingLot } from '../parking-lots/parking-lot.entity';
 import { Reservation } from '../reservations/reservation.entity';
+import { Review } from '../reviews/review.entity';
 
 export enum UserRole {
   USER = 'user',
@@ -46,4 +54,7 @@ export class User {
 
   @OneToMany(() => Reservation, (reservation) => reservation.user)
   reservations: Reservation[];
+
+  @OneToMany(() => Review, (review) => review.user)
+  reviews: Review[];
 }

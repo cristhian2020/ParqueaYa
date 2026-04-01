@@ -62,3 +62,29 @@ export interface UpdateReservationStatusDto {
   status: ReservationStatus;
   cancellation_reason?: string;
 }
+
+export interface Review {
+  id: string;
+  user_id: string;
+  parking_lot_id: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    name: string;
+    role: 'user' | 'owner';
+  };
+}
+
+export interface CreateReviewDto {
+  rating: number;
+  comment?: string;
+  parking_lot_id: string;
+}
+
+export interface UpdateReviewDto {
+  rating?: number;
+  comment?: string;
+}

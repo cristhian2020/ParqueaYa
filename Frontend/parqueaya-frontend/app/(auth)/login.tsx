@@ -41,9 +41,9 @@ const LoginScreen = () => {
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <Ionicons name="person-circle" size={100} color="#007BFF" />
-          <Text style={styles.title}>Parqueo Bolivia</Text>
-          <Text style={styles.subtitle}>Encuentra el parqueo perfecto para ti</Text>
+          <Ionicons name="car" size={100} color="#007BFF" />
+          <Text style={styles.title}>ParqueaYa</Text>
+          <Text style={styles.subtitle}>Encuentra el parqueo perfecto cerca de ti</Text>
         </View>
         <View style={styles.form}>
             <View style={styles.inputContainer}>

@@ -2,6 +2,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PaperProvider } from 'react-native-paper';
 import { useEffect } from 'react';
 import { useAuthStore } from '../src/store/authStore';
 
@@ -16,31 +17,33 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <Stack>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="parking/[id]" options={{
-          headerShown: true,
-          title: 'Detalle del Parqueo',
-          headerBackTitle: 'Volver'
-        }} />
-        <Stack.Screen name="reservations/index" options={{
-          headerShown: true,
-          title: 'Mis Reservas',
-          headerBackTitle: 'Volver'
-        }} />
-        <Stack.Screen name="reservations/[id]" options={{
-          headerShown: true,
-          title: 'Detalle de Reserva',
-          headerBackTitle: 'Volver'
-        }} />
-        <Stack.Screen name="reservations/create" options={{
-          headerShown: true,
-          title: 'Nueva Reserva',
-          headerBackTitle: 'Volver'
-        }} />
-      </Stack>
+      <PaperProvider>
+        <StatusBar style="auto" />
+        <Stack>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="parking/[id]" options={{
+            headerShown: true,
+            title: 'Detalle del Parqueo',
+            headerBackTitle: 'Volver'
+          }} />
+          <Stack.Screen name="reservations/index" options={{
+            headerShown: true,
+            title: 'Mis Reservas',
+            headerBackTitle: 'Volver'
+          }} />
+          <Stack.Screen name="reservations/[id]" options={{
+            headerShown: true,
+            title: 'Detalle de Reserva',
+            headerBackTitle: 'Volver'
+          }} />
+          <Stack.Screen name="reservations/create" options={{
+            headerShown: true,
+            title: 'Nueva Reserva',
+            headerBackTitle: 'Volver'
+          }} />
+        </Stack>
+      </PaperProvider>
     </SafeAreaProvider>
   );
 }
